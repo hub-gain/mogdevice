@@ -65,7 +65,7 @@ class MOGDevice:
         # check the connection?
         if check:
             try:
-                self.info = self.ask(b"info")
+                info = self.ask(b"info")
             except Exception as E:
                 logger.error(str(E))
                 raise RuntimeError("Device did not respond to query")
