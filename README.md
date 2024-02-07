@@ -15,4 +15,4 @@
 
 ## License
 
-Copyright © 2020 Bastian Leykauf
+Copyright © 2023 Bastian Leykauf

@@ -8,15 +8,17 @@ v1.0: Initial release
 (c) MOGLabs 2016--2019
 http://www.moglabs.com/
 """
-import time
-import socket
-import select
-from struct import unpack
-from collections import OrderedDict
+
 import logging
+import select
+import socket
+import time
+from collections import OrderedDict
+from struct import unpack
 
 logger = logging.getLogger("MOG")
 CRLF = b"\r\n"
+
 
 # Handles communication with devices
 class MOGDevice:
@@ -158,7 +160,9 @@ class MOGDevice:
                     return False
                 time.sleep(timeout)
                 return self.dev.inWaiting() > 0
-            except serial.SerialException:  # will raise an exception if the device is not connected
+            except (
+                serial.SerialException
+            ):  # will raise an exception if the device is not connected
                 return False
         else:
             sel = select.select([self.dev], [], [], timeout)

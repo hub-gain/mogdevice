@@ -1,6 +1,3 @@
-from ._version import get_versions  # noqa
+import importlib.metadata
 
-__version__ = get_versions()["version"]
-del get_versions
-
-from .mogdevice import MOGDevice
+__version__ = importlib.metadata.version("mogdevice")

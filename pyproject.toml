@@ -1,47 +1,44 @@
 [build-system]
-requires = ["setuptools >= 38.3.0", "wheel"]
+requires = ["setuptools>=30.3.0", "wheel"]
 
-[tool.tox]
-legacy_tox_ini = """
-[tox]
-envlist = py34, py35, py36, py37, py38
+[project]
+name = "mogdevice"
+description = "Communicating with MOGlabs devices"
+authors = [
+  { name = "Bastian Leykauf" },
+  { email = "leykauf@physik.hu-berlin.de" },
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Science/Research",
+]
+dependencies = ["serial>=0.0.97"]
+dynamic = ["version"]
 
-[travis]
-python =
-    3.8: py38
-    3.7: py37
-    3.6: py36
-    3.5: py35
-    3.4: py34
+[project.optional-dependencies]
+dev = [
+  "black>=22.8.0",
+  "pre-commit>=2.20.0",
+  "flake8>=5.0.4",
+  "isort>=5.10.1",
+  "flake8-pyproject>=1.2.3",
+]
 
-[testenv]
-deps =
-    pytest
-    pytest-cov
+[project.urls]
+homepage = "https://github.com/hub-gain/mogdevice/"
+repository = "https://github.com/hub-gain/mogdevice/"
 
-commands =
-    pytest --cov {envsitepackagesdir}/mogdevice
-"""
+[tool.setuptools_scm]
 
-[tool.black]
-line-length = 88
-exclude = '''
+[tool.flake8]
+max-line-length = 88
+extend-ignore = "E203"
+docstring-convention = "numpy"
 
-(
-  /(
-      \.eggs         # exclude a few common directories in the
-    | \.git          # root of the project
-    | \.hg
-    | \.mypy_cache
-    | \.tox
-    | \.venv
-    | _build
-    | buck-out
-    | build
-    | dist
-  )/
-  | versioneer.py
-  | mogdevice/_version.py
-  | docs/config.py
-)
-'''
+[tool.isort]
+profile = "black"
