@@ -38,7 +38,7 @@ class MOGDevice(object):
             self.connection = addr
             self.is_usb = True
         else:
-            if not ":" in addr:
+            if ":" not in addr:
                 if port is None:
                     port = 7802
                 addr = "%s:%d" % (addr, port)
@@ -71,8 +71,8 @@ class MOGDevice(object):
                     timeout=timeout,
                     writeTimeout=0,
                 )
-            except serial.SerialException as E:
-                raise RuntimeError(E.args[0].split(":", 1)[0])
+            except serial.SerialException as e:
+                raise RuntimeError(e.args[0].split(":", 1)[0])
         else:
             self.dev = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.dev.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -83,7 +83,7 @@ class MOGDevice(object):
         if check:
             try:
                 self.info = self.ask("info")
-            except Exception as E:
+            except Exception:
                 raise RuntimeError("Device did not respond to query")
 
     def connected(self):
@@ -107,7 +107,7 @@ class MOGDevice(object):
         if ":" in verstr:
             # old versions are LF-separated, new are comma-separated
             tk = "," if "," in verstr else "\n"
-            for l in verstr.split(tk):
+            for l in verstr.split(tk):  # noqa: E741
                 if l.startswith("OK"):
                     continue
                 n, v = l.split(":", 2)
@@ -150,7 +150,7 @@ class MOGDevice(object):
         if resp.startswith("OK"):
             resp = resp[3:].strip()
         # expect a colon in there
-        if not ":" in resp:
+        if ":" not in resp:
             raise RuntimeError("Response to " + repr(cmd) + " not a dictionary")
         # response could be comma-delimited (new) or newline-delimited (old)
         splitchar = "," if "," in resp else "\n"
