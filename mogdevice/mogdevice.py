@@ -2,27 +2,34 @@
 moglabs device class
 Simplifies communication with moglabs devices
 
+Compatible with both python2 and python3
+
+v1.2: Fixed Unicode ambiguities, added explicit close(), fixed USB error in recv_raw()
 v1.1: Made compatible with both python2 and python3
 v1.0: Initial release
 
-(c) MOGLabs 2016--2019
+(c) MOGLabs 2016--2021
 http://www.moglabs.com/
 """
 
-import logging
 import select
 import socket
 import time
 from collections import OrderedDict
 from struct import unpack
 
-logger = logging.getLogger("MOG")
+import serial
+import six
+
 CRLF = b"\r\n"
 
 
 # Handles communication with devices
-class MOGDevice:
+class MOGDevice(object):
     def __init__(self, addr, port=None, timeout=1, check=True):
+        assert len(addr), "No address specified"
+        self.dev = None
+
         # is it a COM port?
         if addr.startswith("COM") or addr == "USB":
             if port is not None:
@@ -39,13 +46,21 @@ class MOGDevice:
             self.is_usb = False
         self.reconnect(timeout, check)
 
-    def reconnect(self, timeout=1, check=True):
-        "Reestablish connection with unit"
-        if hasattr(self, "dev"):
-            self.dev.close()
-        if self.is_usb:
-            import serial
+    def __repr__(self):
+        """Returns a simple string representation of the connection"""
+        return 'MOGDevice("%s")' % self.connection
 
+    def close(self):
+        """Close any active connection. Can be reconnected at a later time"""
+        if self.connected():
+            self.dev.close()
+            self.dev = None
+
+    def reconnect(self, timeout=1, check=True):
+        """Reestablish connection with unit"""
+        # close the handle if open - this is _required_ on USB
+        self.close()
+        if self.is_usb:
             try:
                 self.dev = serial.Serial(
                     self.connection,
@@ -67,69 +82,87 @@ class MOGDevice:
         # check the connection?
         if check:
             try:
-                info = self.ask(b"info")
+                self.info = self.ask("info")
             except Exception as E:
-                logger.error(str(E))
                 raise RuntimeError("Device did not respond to query")
 
+    def connected(self):
+        """
+        Returns True if a connection has been established, but does not validate the
+        channel is still open.
+        """
+        return self.dev is not None
+
+    def _check(self):
+        """Assers that the device is connected"""
+        assert self.connected(), "Not connected"
+
     def versions(self):
-        verstr = self.ask(b"version")
-        if verstr == b"Command not defined":
+        """Returns a dictionary of device version information"""
+        verstr = self.ask("version")
+        if verstr == "Command not defined":
             raise RuntimeError("Incompatible firmware")
         # does the version string define components?
         vers = {}
-        if b":" in verstr:
+        if ":" in verstr:
             # old versions are LF-separated, new are comma-separated
-            tk = b"," if b"," in verstr else "\n"
+            tk = "," if "," in verstr else "\n"
             for l in verstr.split(tk):
-                if l.startswith(b"OK"):
+                if l.startswith("OK"):
                     continue
-                n, v = l.split(b":", 2)
+                n, v = l.split(":", 2)
                 v = v.strip()
-                if b" " in v:
+                if " " in v:
                     v = v.rsplit(" ", 2)[1].strip()
                 vers[n.strip()] = v
         else:
             # just the micro
-            vers[b"UC"] = verstr.strip()
+            vers["UC"] = verstr.strip()
         return vers
 
     def cmd(self, cmd):
-        "Send the specified command, and check the response is OK"
+        """
+        Send specified command and check response is OK. Returns response in Unicode.
+        """
         resp = self.ask(cmd)
-        if resp.startswith(b"OK"):
+        if resp.startswith("OK"):
             return resp
         else:
             raise RuntimeError(resp)
 
     def ask(self, cmd):
-        "Send followed by receive"
+        """Send followed by receive, returning response in Unicode"""
         # check if there's any response waiting on the line
         self.flush()
         self.send(cmd)
         resp = self.recv().strip()
-        if resp.startswith(b"ERR:"):
+        if resp.startswith("ERR:"):
             raise RuntimeError(resp[4:].strip())
         return resp
 
     def ask_dict(self, cmd):
-        "Send a request which returns a dictionary response"
+        """
+        Send a request which returns a dictionary response, with keys and values in
+        Unicode.
+        """
         resp = self.ask(cmd)
         # might start with "OK"
-        if resp.startswith(b"OK"):
+        if resp.startswith("OK"):
             resp = resp[3:].strip()
         # expect a colon in there
-        if not b":" in resp:
+        if not ":" in resp:
             raise RuntimeError("Response to " + repr(cmd) + " not a dictionary")
         # response could be comma-delimited (new) or newline-delimited (old)
+        splitchar = "," if "," in resp else "\n"
+        # construct the dict (but retain the original key order)
         vals = OrderedDict()
-        for entry in resp.split(b"," if b"," in resp else b"\n"):
-            name, val = entry.split(b":")
-            vals[name.strip()] = val.strip()
+        for entry in resp.split(splitchar):
+            key, val = entry.split(":")
+            vals[key.strip()] = val.strip()
         return vals
 
     def ask_bin(self, cmd):
-        "Send a request which returns a binary response"
+        """Send a request which returns a binary response, returned in Bytes."""
         self.send(cmd)
         head = self.recv_raw(4)
         # is it an error message?
@@ -142,7 +175,7 @@ class MOGDevice:
         return data
 
     def send(self, cmd):
-        "Send command, appending newline if not present"
+        """Send command, appending newline if not present."""
         if hasattr(cmd, "encode"):
             cmd = cmd.encode()
         if not cmd.endswith(CRLF):
@@ -150,9 +183,9 @@ class MOGDevice:
         self.send_raw(cmd)
 
     def has_data(self, timeout=0):
+        """Returns True if there is data waiting on the line, otherwise False"""
+        self._check()
         if self.is_usb:
-            import serial
-
             try:
                 if self.dev.inWaiting():
                     return True
@@ -169,84 +202,93 @@ class MOGDevice:
             return len(sel[0]) > 0
 
     def flush(self, timeout=0, buffer=256):
-        dat = b""
+        self._check()
+        dat = ""
         while self.has_data(timeout):
-            dat += self.recv(buffer)
-        if len(dat):
-            logger.debug("Flushed" + repr(dat))
+            chunk = self.recv(buffer)
+            # handle the case where we get binary rubbish and prevent TypeError
+            if isinstance(chunk, six.binary_type) and not isinstance(
+                dat, six.binary_type
+            ):
+                dat = dat.encode()
+            dat += chunk
         return dat
 
     def recv(self, buffer=256):
-        "A somewhat robust multi-packet receive call"
+        """Receive a line of data from the device, returned as Unicode"""
+        self._check()
         if self.is_usb:
             data = self.dev.readline(buffer)
             if len(data):
-                t0 = self.dev.timeout
-                self.dev.timeout = 0 if data.endswith(CRLF) else 0.1
-                while True:
+                while self.has_data(timeout=0):
                     segment = self.dev.readline(buffer)
                     if len(segment) == 0:
                         break
                     data += segment
-                self.dev.timeout = t0
             if len(data) == 0:
                 raise RuntimeError("Timed out")
         else:
-            data = self.dev.recv(buffer)
-            timeout = 0 if data.endswith(CRLF) else 0.1
-            while self.has_data(timeout):
-                try:
-                    segment = self.dev.recv(buffer)
-                except IOError:
-                    if len(data):
-                        break
-                    raise
-                data += segment
-        logger.debug("<< %d = %s" % (len(data), repr(data)))
-        return data
+            data = b""
+            while True:
+                data += self.dev.recv(buffer)
+                timeout = 0 if data.endswith(CRLF) else 0.1
+                if not self.has_data(timeout):
+                    break
+        try:
+            # try to return the result as a Unicode string
+            return data.decode()
+        except UnicodeDecodeError:
+            # even though we EXPECTED a string, we got raw data so return it as bytes
+            return data
 
     def send_raw(self, cmd):
-        "Send, without appending newline"
-        if len(cmd) < 256:
-            logger.debug(">>" + repr(cmd))
+        """Send, without appending newline"""
+        self._check()
         if self.is_usb:
             return self.dev.write(cmd)
         else:
             return self.dev.send(cmd)
 
     def recv_raw(self, size):
-        "Receive exactly 'size' bytes"
-        # be pythonic: better to join a list of strings than append each iteration
+        """Receive exactly 'size' bytes"""
+        self._check()
         parts = []
+        tout = time.time() + self.get_timeout()
         while size > 0:
             if self.is_usb:
-                chunk = self.dev.read(size)
+                chunk = self.dev.read(min(size, 0x2000))
             else:
-                chunk = self.dev.recv(size)
-            if len(chunk) == 0:
-                break
+                chunk = self.dev.recv(min(size, 0x2000))
+            if time.time() > tout:
+                raise TimeoutError("timed out")
             parts.append(chunk)
             size -= len(chunk)
         buf = b"".join(parts)
-        logger.debug("<< RECV_RAW got %d" % len(buf))
-        logger.debug(repr(buf))
         return buf
 
-    def set_timeout(self, val=None):
+    def get_timeout(self):
+        """Return the connection timeout, in seconds"""
+        self._check()
         if self.is_usb:
-            old = self.dev.timeout
-            if val is not None:
-                self.dev.timeout = val
-            return old
+            return self.dev.timeout
         else:
-            old = self.dev.gettimeout()
-            if val is not None:
+            return self.dev.gettimeout()
+
+    def set_timeout(self, val=None):
+        """Change the timeout to the specified value, in seconds"""
+        self._check()
+        old = self.get_timeout()
+        if val is not None:
+            if self.is_usb:
+                self.dev.timeout = val
+            else:
                 self.dev.settimeout(val)
             return old
 
 
 def load_script(filename):
-    with open(filename, "r") as f:
+    """Loads a script of commands for line-by-line execution, removing comments."""
+    with open(filename, "rU") as f:  # open in universal mode
         for linenum, line in enumerate(f):
             # remove comments
             line = line.split("#", 1)[0]
@@ -254,5 +296,6 @@ def load_script(filename):
             line = line.strip()
             if len(line) == 0:
                 continue
-            # return this info
+            # for debugging purposes it's helpful to know which line of the file is
+            # being executed
             yield linenum + 1, line
