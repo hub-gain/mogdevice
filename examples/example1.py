@@ -2,6 +2,7 @@
 # ARF simple python example, (c) MOGLabs 2016-2019
 # --------------------------------------------------
 from __future__ import print_function
+
 from mogdevice import MOGDevice
 
 # connect to the device

@@ -2,8 +2,10 @@
 # ARF Gaussian pulse example, (c) MOGLabs 2016-2019
 # --------------------------------------------------
 from __future__ import print_function
-from mogdevice import MOGDevice
+
 import numpy as np
+
+from mogdevice import MOGDevice
 
 # connect to the device
 dev = MOGDevice("10.1.1.45")
@@ -12,7 +14,7 @@ print("Device info:", dev.ask("info"))
 # construct the pulse
 N = 200
 X = np.linspace(-2, 2, N)
-Y = 30 * (np.exp(-(X ** 2)) - 1)  # -30 to 0dBm
+Y = 30 * (np.exp(-(X**2)) - 1)  # -30 to 0dBm
 
 dev.cmd("MODE,1,TSB")  # set CH1 into table mode
 dev.cmd("TABLE,ENTRIES,1,0")  # clear existing table
