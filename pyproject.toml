@@ -30,8 +30,8 @@ dev = [
 ]
 
 [project.urls]
-homepage = "https://github.com/hub-gain/mogdevice/"
-repository = "https://github.com/hub-gain/mogdevice/"
+homepage = "https://github.com/bleykauf/mogdevice/"
+repository = "https://github.com/bleyakauf/mogdevice/"
 
 [tool.setuptools_scm]
 
