@@ -42,3 +42,7 @@ docstring-convention = "numpy"
 
 [tool.isort]
 profile = "black"
+
+[[tool.mypy.overrides]]
+module = ["pytest", "serial"]
+ignore_missing_imports = true

@@ -1,6 +1,6 @@
 """Class for the moglabs QRF."""
 
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from mogdevice import MOGDevice
 
@@ -119,7 +119,7 @@ class QRF(MOGDevice):
                 cmd += f",{c}"
         _ = self.cmd(cmd)
 
-    def start(self, ch: Optional[list[int] | int] = None):
+    def start(self, ch: Optional[Union[list[int], int]] = None):
         """
         Provide a software trigger to start table execution on the specified channel(s).
 
@@ -130,12 +130,13 @@ class QRF(MOGDevice):
         """
         cmd = "TABLE,START"
         if ch is not None:
-            ch = list(ch)
+            if isinstance(ch, int):
+                ch = [ch]
             for c in ch:
                 cmd += f",{c}"
         return self.cmd(cmd)
 
-    def stop(self, ch: Optional[list[int] | int] = None):
+    def stop(self, ch: Optional[Union[list[int], int]] = None):
         """
         Stop table execution at the end of the current step for the specified
         channel(s).
@@ -147,7 +148,8 @@ class QRF(MOGDevice):
         """
         cmd = "TABLE,STOP"
         if ch is not None:
-            ch = list(ch)
+            if isinstance(ch, int):
+                ch = [ch]
             for c in ch:
                 cmd += f",{c}"
         return self.cmd(cmd)
@@ -209,7 +211,7 @@ class Channel:
         return float(resp.split("dBm")[0])
 
     @limit.setter
-    def limit(self, value: float | str):
+    def limit(self, value: Union[float, str]):
         _ = self.qrf.cmd(f"LIMIT,{self.ch},{value}")
 
     @property
@@ -247,7 +249,7 @@ class Channel:
         phase: float = 0.0,
         dur: int = 0,
         flags: Optional[
-            Literal["SIG", "POW", "TRIG"] | list[Literal["SIG", "POW", "TRIG"]]
+            Union[Literal["SIG", "POW", "TRIG"], list[Literal["SIG", "POW", "TRIG"]]]
         ] = None,
     ) -> None:
         """
@@ -288,7 +290,7 @@ class Channel:
         phase: float = 0.0,
         dur: int = 0,
         flags: Optional[
-            Literal["SIG", "POW", "TRIG"] | list[Literal["SIG", "POW", "TRIG"]]
+            Union[Literal["SIG", "POW", "TRIG"], list[Literal["SIG", "POW", "TRIG"]]]
         ] = None,
     ):
         """
@@ -386,12 +388,11 @@ class Channel:
         Enable/disable the automatic re-arming (loading) of the table upon completion
         such that it can be started again from a hardware or software trigger.
         """
-        _ = self.qrf.ask(f"TABLE,REARM,{self.ch}") == "on"
+        return self.qrf.ask(f"TABLE,REARM,{self.ch}") == "on"
 
     @rearm_enabled.setter
     def rearm_enabled(self, enable: bool) -> None:
-        enable = "on" if enable else "off"
-        _ = self.qrf.cmd(f"TABLE,REARM,{self.ch},{enable}")
+        _ = self.qrf.cmd(f"TABLE,REARM,{self.ch},{'on' if enable else 'off'}")
 
     @property
     def restart_enabled(self) -> bool:
