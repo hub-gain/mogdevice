@@ -1,4 +1,5 @@
 import pytest  # noqa
+
 import mogdevice  # noqa
 
 
